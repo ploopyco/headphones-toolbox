@@ -1,3 +1,7 @@
+<script setup>
+  import { FilterTypes } from './FilterTypes.js'
+</script>
+
 <template>
   <div class="full-width">
     <q-toolbar class="title-bar-lv2">
@@ -22,18 +26,22 @@
       </q-btn>
     </q-toolbar>
     <div class="full-width row">
-      <q-list dense bordered class="col-grow q-py-sm" v-if="filter_type !== 'custom_iir'">
+      <q-list dense bordered class="col-grow q-py-sm" v-if="filter_type !== FilterTypes.CUSTOMIIR">
         <q-item>
           <q-item-section>
-            <div class="row justify-start items-center q-gutter-sm">
-              <q-chip icon="graphic_eq" class="control-label" color=secondary text-color=white>Frequency</q-chip>
-              <!--q-item-label caption lines="2">The centre frequency. this is where the signal starts getting attenuated.</q-item-label-->
+            <div class = "row items-center">
+              <div class="col-3 justify-start items-center q-gutter-sm">
+                <q-chip icon="graphic_eq" class="control-label" color=secondary text-color=white>Frequency</q-chip>
+                <!--q-item-label caption lines="2">The centre frequency. this is where the signal starts getting attenuated.</q-item-label-->
+              </div>
+              <div class="col">
+                <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
+                <q-slider :model-value="Math.log(f0) / Math.log(20000)"
+                @update:model-value="(value) => $emit('update:f0', Math.pow(20000, value))" label
+                :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001>
+              </q-slider>
             </div>
-            <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
-            <q-slider :model-value="Math.log(f0) / Math.log(20000)"
-              @update:model-value="(value) => $emit('update:f0', Math.pow(20000, value))" label
-              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001>
-            </q-slider>
+          </div>
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space shadow-text="hz" style="width:5em"
@@ -42,17 +50,20 @@
           </q-item-section>
         </q-item>
 
-        <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(filter_type)">
+        <q-item v-if="[FilterTypes.LOWSHELF, FilterTypes.HIGHSHELF, FilterTypes.PEAKING].includes(filter_type)">
 
           <q-item-section>
-            <div class="row justify-start items-center q-gutter-sm">
-              <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>Gain</q-chip>
-              <!--q-item-label caption lines="2">The gain at the centre frequency, in dB. Positive for boost, negative for
+            <div class = "row">
+              <div class="col-3 justify-start items-center q-gutter-sm">
+                <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>Gain</q-chip>
+                <!--q-item-label caption lines="2">The gain at the centre frequency, in dB. Positive for boost, negative for
                 cut.</q-item-label-->
-            </div>
-
-            <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-25
-              :max=25 :step=0.01 label :label-value="db_gain + 'db'" />
+              </div>
+              <div class="col">
+                <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-25
+                  :max=25 :step=0.01 label :label-value="db_gain + 'db'" />
+                </div>
+              </div>
           </q-item-section>
 
           <q-item-section side>
@@ -64,12 +75,16 @@
         <q-item>
 
           <q-item-section>
-            <div class="row justify-start items-center q-gutter-sm">
-              <q-chip icon="auto_graph" class="control-label" color=secondary text-color=white>Quality</q-chip>
-              <!--q-item-label caption lines="2">The quality factor. It defines how aggressive the band pass attenuates from the centre frequency. When Q=sqrt(2) it is 1 octave wide</q-item-label-->
+            <div class = "row">
+              <div class="col-3 justify-start items-center q-gutter-sm">
+                <q-chip icon="auto_graph" class="control-label" color=secondary text-color=white>Quality</q-chip>
+                <!--q-item-label caption lines="2">The quality factor. It defines how aggressive the band pass attenuates from the centre frequency. When Q=sqrt(2) it is 1 octave wide</q-item-label-->
+              </div>
+              <div class="col">
+                <q-slider :model-value="q" @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 :step=0.01
+                  :inner-min=0.1 label />
+                </div>
             </div>
-            <q-slider :model-value="q" @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 :step=0.01
-              :inner-min=0.1 label />
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space style="width:5em" :model-value="q"
@@ -137,7 +152,7 @@ import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 export default {
   watch: {
     filter_type(new_type, old_type) {
-      if (new_type == 'custom_iir') {
+      if (new_type == FilterTypes.CUSTOMIIR) {
         var c = getFilterCoefficients(old_type, this.f0, this.db_gain, this.q)
         if (c) {
           this.$emit('update:a0', Math.round(c.feedback[0] * this.iirDp) / this.iirDp)
@@ -153,16 +168,16 @@ export default {
   data() {
     return {
       iirDp: 1000000000,
-      filter_types: [{ value: 'lowpass', label: 'Low Pass' },
-      { value: 'highpass', label: 'High Pass' },
-      { value: 'bandpass_skirt', label: 'Bandpass Skirt' },
-      { value: 'bandpass', label: 'Bandpass Peak' },
-      { value: 'notch', label: "Notch" },
-      { value: 'allpass', label: "All Pass" },
-      { value: 'peaking', label: "Peaking" },
-      { value: 'lowshelf', label: "Low Shelf" },
-      { value: 'highshelf', label: "High Shelf" },
-      { value: 'custom_iir', label: "Custom IIR Filter" }],
+      filter_types: [{ value: FilterTypes.LOWPASS, label: 'Low Pass' },
+      { value: FilterTypes.HIGHPASS, label: 'High Pass' },
+      { value: FilterTypes.BANDPASSSKIRT, label: 'Bandpass Skirt' },
+      { value: FilterTypes.BANDPASSPEAK, label: 'Bandpass Peak' },
+      { value: FilterTypes.NOTCH, label: "Notch" },
+      { value: FilterTypes.ALLPASS, label: "All Pass" },
+      { value: FilterTypes.PEAKING, label: "Peaking" },
+      { value: FilterTypes.LOWSHELF, label: "Low Shelf" },
+      { value: FilterTypes.HIGHSHELF, label: "High Shelf" },
+      { value: FilterTypes.CUSTOMIIR, label: "Custom IIR Filter" }],
       warning: ref(true)
     }
   },
